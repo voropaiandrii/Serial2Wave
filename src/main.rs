@@ -90,12 +90,12 @@ fn main() -> io::Result<()> {
     println!("Loaded Config: {}", json_config);
 
 
-    let now = Local::now();
-    let audio_file_name = Arc::new(format!("{}{}_sine_{}.wav", 
-        config.output_wav_file_path, 
-        config.output_files_prefix, 
-        now.format("%Y-%m-%d_%H:%M:%S%.3f")
-    ));
+    let now: chrono::DateTime<Local> = Local::now();
+    let audio_file_name_str = format!("{}/{}_audio_{}.wav", 
+        config.output_wav_file_path.clone(), 
+        config.output_files_prefix.clone(),
+        now.format("%Y-%m-%d-%H-%M-%S%.3f").to_string());
+    let audio_file_name = Arc::new(audio_file_name_str);
 
     let ram_buffer = Arc::new(Mutex::new(Vec::new()));
     let ram_buffer_clone = Arc::clone(&ram_buffer);
@@ -155,7 +155,7 @@ fn main() -> io::Result<()> {
                     | ((data[4003] as u32) << 24);
 
                     // Convert byte chunks to i16 values
-                    let data_i16: Vec<i16> = data.chunks_exact(2) // Process chunks of two bytes
+                    let data_i16: Vec<i16> = data[0..4000].chunks_exact(2) // Process chunks of two bytes
                     .map(|chunk| LittleEndian::read_i16(chunk))
                     .collect(); // Collect into Vec<i16>
 
@@ -170,7 +170,6 @@ fn main() -> io::Result<()> {
     // Start processing thread
     parser::parser::Parser::start(Arc::clone(&parser));
 
-
     // Clone the writer for Ctrl+C handler
     let writer_clone = Arc::clone(&writer);
     ctrlc::set_handler(move || {
@@ -181,7 +180,7 @@ fn main() -> io::Result<()> {
         // Lock the buffer to access samples
         let buffer = ram_buffer_clone.lock().unwrap();
        
-       if let Some(ref mut writer) = *writer_guard {
+        if let Some(ref mut writer) = *writer_guard {
             for &sample in buffer.iter() {
                 writer.write_sample(sample).expect("Failed to write sample");
             }
@@ -191,7 +190,6 @@ fn main() -> io::Result<()> {
         } else {
             eprintln!("Writer was not initialized.");
         }
-
         std::process::exit(0);
     }).expect("Error setting Ctrl+C handler");
 

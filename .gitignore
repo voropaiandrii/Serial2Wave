@@ -59,6 +59,7 @@ clippy.toml
 
 # Ignore generated documentation
 /target/doc/
+/output/
 
 # macOS
 *.DS_Store

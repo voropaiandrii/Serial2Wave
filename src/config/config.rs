@@ -85,15 +85,23 @@ impl ConfigManager {
         let path = Path::new(output_file_path);
     
         // Extract the parent directory (folder path)
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                println!("Folder '{}' does not exist. Creating it...", parent.display());
-                fs::create_dir_all(parent).expect("Failed to create output folder");
-            } else {
-                println!("Folder '{}' already exists.", parent.display());
-            }
+        // if let Some(parent) = path.parent() {
+        //     if !parent.exists() {
+        //         println!("Folder '{}' does not exist. Creating it...", parent.display());
+        //         fs::create_dir_all(parent).expect("Failed to create output folder");
+        //     } else {
+        //         println!("Folder '{}' already exists.", parent.display());
+        //     }
+        // } else {
+        //     println!("⚠️ Warning: No parent folder found in the provided path '{}'", output_file_path);
+        // }
+    
+        if !path.exists() {
+            println!("Folder '{}' does not exist. Creating it...", path.display());
+            fs::create_dir_all(path).expect("Failed to create output folder");
         } else {
-            println!("⚠️ Warning: No parent folder found in the provided path '{}'", output_file_path);
+            println!("Folder '{}' already exists.", path.display());
         }
+
     }
 }
