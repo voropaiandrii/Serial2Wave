@@ -173,12 +173,17 @@ fn main() -> io::Result<()> {
     // Clone the writer for Ctrl+C handler
     let writer_clone = Arc::clone(&writer);
     ctrlc::set_handler(move || {
-        println!("\nCtrl+C detected! Flushing buffer to {} file...", audio_file_name);
+        // Lock the buffer to access samples
+        let buffer = ram_buffer_clone.lock().unwrap();
+
+        if(buffer.len() == 0) {
+            println!("\nNo audio data to flush! Exiting...");
+            std::process::exit(0);
+        }
 
         let mut writer_guard = writer_clone.lock().unwrap();
 
-        // Lock the buffer to access samples
-        let buffer = ram_buffer_clone.lock().unwrap();
+        println!("\nCtrl+C detected! Flushing buffer to {} file...", audio_file_name);
        
         if let Some(ref mut writer) = *writer_guard {
             for &sample in buffer.iter() {
