@@ -1,0 +1,2 @@
+tests/data/CoolTerm[[:space:]]Capture[[:space:]](Untitled_0)[[:space:]]2025-07-07[[:space:]]23-03-15-968[[:space:]]3ch.txt filter=lfs diff=lfs merge=lfs -text
+tests/data/CoolTerm[[:space:]]Capture[[:space:]](Untitled_1)[[:space:]]2024-12-21[[:space:]]12-24-34-830.txt filter=lfs diff=lfs merge=lfs -text

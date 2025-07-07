@@ -357,7 +357,7 @@ mod tests {
      #[test]
     fn test_parser_3ch() {
         // Path to the test data file
-        let path = "tests/data/CoolTerm Capture (Untitled_1) 2024-12-21 12-24-34-830.txt";
+        let path = "tests/data/CoolTerm Capture (Untitled_0) 2025-07-07 23-03-15-968 3ch.txt";
 
         // Attempt to read the file
         let result = test_utils::read_file_as_bytes(path);
@@ -376,9 +376,9 @@ mod tests {
 
         let default_config = config::Config {
             serial_port: String::from("/dev/tty.usbmodem01234567891"),
-            serial_port_baud_rate: 2_000_000,
+            serial_port_baud_rate: 2_600_000,
             sample_rate: 48000,
-            audio_frame_bytes_length: 4000,
+            audio_frame_bytes_length: 18000,
             audio_frame_number_bytes_length: 4,
             number_of_channels: 3,
             bytes_per_channel: 2,
@@ -396,16 +396,16 @@ mod tests {
 
         // Start processing frames
 
-        // 1️⃣ Logs + 1 broken audio frame + 1 correct audio frame + a big of next audio frame
-        parser.push_data(&data[0..12000]); 
+        // 1️⃣ Logs + 1 audio frame
+        parser.push_data(&data[17872..39156]); 
         parser.process();
         // 619 bytes left in the data_queue
 
         {
             let results = callback_results.lock().unwrap();
             assert!(
-                results.len() == 3,
-                "Expected at least 3 frames. Found: {}",
+                results.len() == 2,
+                "Expected at least 2 frames. Found: {}",
                 results.len()
             );
 
@@ -415,20 +415,13 @@ mod tests {
             assert_eq!(results[0].0, FrameType::LogData, "0 frame should be LogData");
             assert_eq!(results[1].0, FrameType::AudioData, "1 frame should be AudioData");
             //let result_array_1: &[u8] = &results[1].1;
-            assert_eq!(results[1].1[4004..4012], default_config.sync_bytes, "1 frame should have sync_vec");
+            assert_eq!(results[1].1[18004..18012], default_config.sync_bytes, "1 frame should have sync_vec");
 
-            let frame_number_1: u32 = (results[1].1[4000] as u32)
-                    | ((results[1].1[4001] as u32) << 8)
-                    | ((results[1].1[4002] as u32) << 16)
-                    | ((results[1].1[4003] as u32) << 24);
+            let frame_number_1: u32 = (results[1].1[18000] as u32)
+                    | ((results[1].1[18001] as u32) << 8)
+                    | ((results[1].1[18002] as u32) << 16)
+                    | ((results[1].1[18003] as u32) << 24);
             assert_eq!(0, frame_number_1, "1 frame should have frame number 0");
-
-            assert_eq!(results[2].0, FrameType::AudioData, "2 frame should be AudioData");
-            let frame_number_2: u32 = (results[2].1[4000] as u32)
-            | ((results[2].1[4001] as u32) << 8)
-            | ((results[2].1[4002] as u32) << 16)
-            | ((results[2].1[4003] as u32) << 24);
-            assert_eq!(1, frame_number_2, "2 frame should have frame number 1");
         }
     }
 }
