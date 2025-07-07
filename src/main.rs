@@ -149,13 +149,14 @@ fn main() -> io::Result<()> {
                 parser::parser::FrameType::AudioData => {
                     let mut buffer = ram_buffer_for_callback.lock().unwrap();
                     let now = Local::now();
-                    let frame_number: u32 = (data[4000] as u32)
-                    | ((data[4001] as u32) << 8)
-                    | ((data[4002] as u32) << 16)
-                    | ((data[4003] as u32) << 24);
+                    
+                    let frame_number: u32 = (data[config.audio_frame_bytes_length] as u32)
+                    | ((data[config.audio_frame_bytes_length + 1] as u32) << 8)
+                    | ((data[config.audio_frame_bytes_length + 2] as u32) << 16)
+                    | ((data[config.audio_frame_bytes_length + 3] as u32) << 24);
 
                     // Convert byte chunks to i16 values
-                    let data_i16: Vec<i16> = data[0..4000].chunks_exact(2) // Process chunks of two bytes
+                    let data_i16: Vec<i16> = data[0..config.audio_frame_bytes_length].chunks_exact(2) // Process chunks of two bytes
                     .map(|chunk| LittleEndian::read_i16(chunk))
                     .collect(); // Collect into Vec<i16>
 
