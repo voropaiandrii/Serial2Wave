@@ -86,30 +86,12 @@ impl Parser {
                 self.data_queue.drain(..*found_positions.last().unwrap() + self.config.sync_bytes.len());
             }
 
-
-
             // 1) Check queue stored length
             // 2) Is queue is bigger than 4012 start the proccessing
             // 3) Search for the audio frame sync bytes starting from the front bytes
             // 4) Check if the queue has 4004 bytes in front of the sync frame
             // 5) Copy all front bytes out of the audio frame bytes and mark them as LOG and delete them from the queue
             // 6) Copy the audio frame bytes and mark them as AUDIO and remove from the queue
-
-            //let packet: Vec<u8> = self.data_queue.drain(..common::PACKET_LENGTH).collect();
-
-            // // Simulate checking the packet type
-            // let frame_type = if packet[0] % 2 == 0 {
-            //     FrameType::LogData
-            // } else {
-            //     FrameType::AudioData
-            // };
-
-            // // Call the callback with the frame type and data
-            // if let Some(callback) = &self.callback {
-            //     callback(frame_type, &packet);
-            // }
-
-            //println!("Processing packet: {:?}", packet);
         }
     }
 
@@ -135,11 +117,12 @@ impl Parser {
         
     }
 
-    pub fn extract_frame_number(packet: &[u8]) -> u64 {
-        // TODO: fix the framing error let frame_number_bytes = &packet[3999..4007];
-        let frame_number_bytes = &packet[3999..4007];
-        u64::from_le_bytes(frame_number_bytes.try_into().expect("Invalid frame number length"))
-    }
+    // pub fn extract_frame_number(packet: &[u8]) -> u64 {
+    //     // TODO: fix the framing error let frame_number_bytes = &packet[3999..4007];
+    //     //config.audio_frame_bytes_length - 1..config.audio_frame_bytes_length
+    //     let frame_number_bytes = &packet[3999..4007];
+    //     u64::from_le_bytes(frame_number_bytes.try_into().expect("Invalid frame number length"))
+    // }
 }
 
 #[cfg(test)]
@@ -368,6 +351,77 @@ mod tests {
             | ((results[8].1[4003] as u32) << 24);
             assert_eq!(6, frame_number_8, "8 frame should have frame number 6");
 
+        }
+    }
+
+     #[test]
+    fn test_parser_3ch() {
+        // Path to the test data file
+        let path = "tests/data/CoolTerm Capture (Untitled_0) 2025-07-07 23-03-15-968 3ch.txt";
+
+        // Attempt to read the file
+        let result = test_utils::read_file_as_bytes(path);
+
+        // Assert that the file was read successfully
+        assert!(result.is_ok(), "Failed to read the file");
+
+        let data = result.unwrap();
+        
+        // Assert that the file is not empty
+        assert!(!data.is_empty(), "File should not be empty");
+
+        // Shared storage for callback results using Arc<Mutex>
+        let callback_results = Arc::new(Mutex::new(Vec::<(FrameType, Vec<u8>)>::new()));
+        let callback_results_clone = Arc::clone(&callback_results);
+
+        let default_config = config::Config {
+            serial_port: String::from("/dev/tty.usbmodem01234567891"),
+            serial_port_baud_rate: 2_600_000,
+            sample_rate: 48000,
+            audio_frame_bytes_length: 18000,
+            audio_frame_number_bytes_length: 4,
+            number_of_channels: 3,
+            bytes_per_channel: 2,
+            sync_bytes: vec![0xFF, 0x01, 0xFF, 0x02, 0xFF, 0x03, 0xFF, 0x04],
+            output_files_prefix: String::from("prefix"),
+            output_wav_file_path: String::from("./"),
+            output_log_file_path: String::from("./"),
+        };
+
+        let mut parser = Parser::new(default_config.clone());
+        parser.set_callback(move |frame_type, data| {
+            let mut results: std::sync::MutexGuard<'_, Vec<(FrameType, Vec<u8>)>> = callback_results_clone.lock().unwrap();
+            results.push((frame_type, data.to_vec()));
+        });
+
+        // Start processing frames
+
+        // 1️⃣ Logs + 1 audio frame
+        parser.push_data(&data[17872..39156]); 
+        parser.process();
+        // 619 bytes left in the data_queue
+
+        {
+            let results = callback_results.lock().unwrap();
+            assert!(
+                results.len() == 2,
+                "Expected at least 2 frames. Found: {}",
+                results.len()
+            );
+
+            // Log
+            // Audio - 7361
+            // Audio - 11373
+            assert_eq!(results[0].0, FrameType::LogData, "0 frame should be LogData");
+            assert_eq!(results[1].0, FrameType::AudioData, "1 frame should be AudioData");
+            //let result_array_1: &[u8] = &results[1].1;
+            assert_eq!(results[1].1[18004..18012], default_config.sync_bytes, "1 frame should have sync_vec");
+
+            let frame_number_1: u32 = (results[1].1[18000] as u32)
+                    | ((results[1].1[18001] as u32) << 8)
+                    | ((results[1].1[18002] as u32) << 16)
+                    | ((results[1].1[18003] as u32) << 24);
+            assert_eq!(0, frame_number_1, "1 frame should have frame number 0");
         }
     }
 }

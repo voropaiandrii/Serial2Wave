@@ -47,8 +47,8 @@ impl ConfigManager {
             bytes_per_channel: 2,
             sync_bytes: vec![0xFF, 0x01, 0xFF, 0x02, 0xFF, 0x03, 0xFF, 0x04],
             output_files_prefix: String::from("prefix"),
-            output_wav_file_path: String::from("./"),
-            output_log_file_path: String::from("./"),
+            output_wav_file_path: String::from("./output/audio"),
+            output_log_file_path: String::from("./output/logs"),
         };
 
         let json_config = serde_json::to_string_pretty(&default_config)

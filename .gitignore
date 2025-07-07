@@ -59,7 +59,9 @@ clippy.toml
 
 # Ignore generated documentation
 /target/doc/
-/output/
+/output/*
+*.wav
+*.log
 
 # macOS
 *.DS_Store

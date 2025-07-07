@@ -2,8 +2,7 @@ use std::fs::File;
 use std::io::{Read, BufReader};
 use std::path::Path;
 
-mod common;
-use common::test_utils;
+use PineBudsAudioReceiverProject::utils::test_utils;
 
 #[cfg(test)]
 mod tests {

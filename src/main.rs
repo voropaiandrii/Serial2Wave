@@ -139,6 +139,7 @@ fn main() -> io::Result<()> {
         parser_lock.set_callback( move | frame_type, data| {
             match frame_type {
                 parser::parser::FrameType::LogData => {
+                    // Log data processing
                     let now = Local::now();
                     let filtered_string: String = data.iter()
                         .filter(|&&b| b.is_ascii()) // Keep only ASCII bytes
@@ -147,21 +148,59 @@ fn main() -> io::Result<()> {
                     println!("{} - {}", now.format("%Y-%m-%d %H:%M:%S%.3f"), filtered_string)
                 },
                 parser::parser::FrameType::AudioData => {
+                    // Audio data processing 
                     let mut buffer = ram_buffer_for_callback.lock().unwrap();
                     let now = Local::now();
-                    let frame_number: u32 = (data[4000] as u32)
-                    | ((data[4001] as u32) << 8)
-                    | ((data[4002] as u32) << 16)
-                    | ((data[4003] as u32) << 24);
+                    
+                    let frame_number: u32 = (data[config.audio_frame_bytes_length] as u32)
+                    | ((data[config.audio_frame_bytes_length + 1] as u32) << 8)
+                    | ((data[config.audio_frame_bytes_length + 2] as u32) << 16)
+                    | ((data[config.audio_frame_bytes_length + 3] as u32) << 24);
 
-                    // Convert byte chunks to i16 values
-                    let data_i16: Vec<i16> = data[0..4000].chunks_exact(2) // Process chunks of two bytes
-                    .map(|chunk| LittleEndian::read_i16(chunk))
-                    .collect(); // Collect into Vec<i16>
+                    // Calculate samples per channel
+                    let bytes_per_sample = config.bytes_per_channel;
+                    let total_samples = config.audio_frame_bytes_length / bytes_per_sample;
+                    let samples_per_channel = total_samples / config.number_of_channels;
 
-                    // Extend the buffer with the converted i16 values
-                    buffer.extend_from_slice(&data_i16);
-                    println!("{} - AUDIO Frame Received Length: {}, frame_number: {}", now.format("%Y-%m-%d %H:%M:%S%.3f"), data.len(), frame_number); 
+                    // Validate that the frame length is correct for the number of channels
+                    if config.audio_frame_bytes_length % (bytes_per_sample * config.number_of_channels) != 0 {
+                        eprintln!("Warning: Audio frame length {} is not divisible by bytes_per_sample * channels ({} * {} = {})", 
+                            config.audio_frame_bytes_length, bytes_per_sample, config.number_of_channels, 
+                            bytes_per_sample * config.number_of_channels);
+                    }
+
+                    // Convert planar format to interleaved format
+                    // Planar format: [Channel1_block][Channel2_block][Channel3_block]...
+                    // Interleaved format: [Sample1_Ch1][Sample1_Ch2][Sample1_Ch3][Sample2_Ch1][Sample2_Ch2][Sample2_Ch3]...
+                    
+                    let mut interleaved_samples: Vec<i16> = Vec::with_capacity(total_samples);
+                    
+                    // Process each sample position across all channels
+                    for sample_idx in 0..samples_per_channel {
+                        for channel in 0..config.number_of_channels {
+                            // Calculate the byte offset for this channel and sample
+                            let channel_offset = channel * samples_per_channel * bytes_per_sample;
+                            let sample_offset = sample_idx * bytes_per_sample;
+                            let byte_offset = channel_offset + sample_offset;
+                            
+                            // Extract the sample bytes for this channel and sample
+                            let sample_bytes = &data[byte_offset..byte_offset + bytes_per_sample];
+                            
+                            // Convert bytes to sample value
+                            let sample_value = match bytes_per_sample {
+                                2 => LittleEndian::read_i16(sample_bytes),
+                                4 => LittleEndian::read_i32(sample_bytes) as i16,
+                                _ => panic!("Unsupported bytes per channel: {}", bytes_per_sample)
+                            };
+                            
+                            interleaved_samples.push(sample_value);
+                        }
+                    }
+
+                    // Extend the buffer with the interleaved samples
+                    buffer.extend_from_slice(&interleaved_samples);
+                    println!("{} - AUDIO Frame Received Length: {}, frame_number: {}, channels: {}, samples_per_channel: {}, converted to interleaved format", 
+                        now.format("%Y-%m-%d %H:%M:%S%.3f"), data.len(), frame_number, config.number_of_channels, samples_per_channel); 
                 },
             }
         });
@@ -184,6 +223,7 @@ fn main() -> io::Result<()> {
         let mut writer_guard = writer_clone.lock().unwrap();
 
         println!("\nCtrl+C detected! Flushing buffer to {} file...", audio_file_name);
+        println!("Total samples in buffer: {}, Number of channels: {}", buffer.len(), config.number_of_channels);
        
         if let Some(ref mut writer) = *writer_guard {
             for &sample in buffer.iter() {
